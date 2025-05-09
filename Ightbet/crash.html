@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crash Game</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background-color: #f5f5f5;
+      padding: 50px;
+    }
+    #game-container {
+      background-color: #222;
+      color: white;
+      padding: 30px;
+      border-radius: 10px;
+      width: 300px;
+      margin: 0 auto;
+    }
+    .multiplier {
+      font-size: 50px;
+      margin-bottom: 20px;
+    }
+    .game-button {
+      padding: 10px 20px;
+      background-color: #4CAF50;
+      border: none;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    .game-button:disabled {
+      background-color: #ccc;
+      cursor: not-allowed;
+    }
+    .status {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+
+<div id="game-container">
+  <h1>Crash Game</h1>
+  <div class="multiplier" id="multiplier">1.00x</div>
+  <button class="game-button" id="startBtn">Start</button>
+  <button class="game-button" id="cashOutBtn" disabled>Cash Out</button>
+  <div class="status" id="status"></div>
+</div>
+
+<script>
+  let gameStarted = false;
+  let multiplier = 1;
+  let crashPoint = 0;
+  let gameInterval;
+  
+  // Start button
+  const startBtn = document.getElementById('startBtn');
+  // Cash out button
+  const cashOutBtn = document.getElementById('cashOutBtn');
+  // Multiplier display
+  const multiplierDisplay = document.getElementById('multiplier');
+  // Status display
+  const statusDisplay = document.getElementById('status');
+
+  // Function to simulate the crash game
+  function startGame() {
+    gameStarted = true;
+    multiplier = 1;
+    crashPoint = Math.random() * (5 - 1) + 1; // Random crash point between 1x and 5x
+    startBtn.disabled = true;
+    cashOutBtn.disabled = false;
+    statusDisplay.textContent = 'Game Started...';
+
+    gameInterval = setInterval(() => {
+      if (gameStarted) {
+        multiplier += 0.01; // Increase multiplier over time
+        multiplierDisplay.textContent = multiplier.toFixed(2) + 'x';
+        if (multiplier >= crashPoint) {
+          endGame(false); // End the game if it crashes
+        }
+      }
+    }, 50);
+  }
+
+  // Function to simulate cashing out
+  function cashOut() {
+    if (!gameStarted) return;
+    endGame(true); // Player cashed out before crash
+  }
+
+  // Function to end the game
+  function endGame(cashedOut) {
+    gameStarted = false;
+    clearInterval(gameInterval);
+    startBtn.disabled = false;
+    cashOutBtn.disabled = true;
+
+    if (cashedOut) {
+      statusDisplay.textContent = `You cashed out at ${multiplier.toFixed(2)}x!`;
+    } else {
+      statusDisplay.textContent = `The game crashed at ${crashPoint.toFixed(2)}x!`;
+    }
+  }
+
+  // Button event listeners
+  startBtn.addEventListener('click', startGame);
+  cashOutBtn.addEventListener('click', cashOut);
+</script>
+
+</body>
+</html>
+

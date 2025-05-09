@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Plinko Game</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: sans-serif;
+    }
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 10;
+      background: rgba(255, 255, 255, 0.9);
+      padding: 10px;
+      border-radius: 8px;
+    }
+    #result {
+      margin-top: 5px;
+      font-weight: bold;
+    }
+    .multiplier-label {
+      position: absolute;
+      bottom: 0;
+      transform: translateX(-50%);
+      font-weight: bold;
+      font-size: 12px;
+      color: #333;
+    }
+    canvas {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <label>Balls: <input type="number" id="ballCount" value="10" min="1" max="100"></label>
+    <label>Bet/ball: <input type="number" id="betAmount" value="1" min="0.01" step="0.01"></label>
+    <button id="betBtn">Drop Balls</button>
+    <div id="result">Total Bet: 0 | Total Won: 0 | Net: 0</div>
+  </div>
+  <canvas id="plinko"></canvas>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+  <script>
+    const { Engine, Render, Runner, World, Bodies, Events } = Matter;
+
+    const canvas = document.getElementById('plinko');
+    const width = window.innerWidth;
+    const height = window.innerHeight;
+    canvas.width = width;
+    canvas.height = height;
+
+    const engine = Engine.create();
+    const world = engine.world;
+
+    const render = Render.create({
+      canvas: canvas,
+      engine: engine,
+      options: {
+        width: width,
+        height: height,
+        wireframes: false,
+        background: '#f0f0f0'
+      }
+    });
+
+    Render.run(render);
+    Runner.run(Runner.create(), engine);
+
+    const spacing = 50;
+    const offsetX = 60;
+    const binCount = Math.floor((width - 2 * offsetX) / spacing);
+    const multipliers = generateMultipliers(binCount);
+
+    // Boundaries (walls + floor)
+    const ground = Bodies.rectangle(width / 2, height + 50, width, 100, { isStatic: true });
+    const leftWall = Bodies.rectangle(offsetX - 10, height / 2, 20, height, { isStatic: true });
+    const rightWall = Bodies.rectangle(width - offsetX + 10, height / 2, 20, height, { isStatic: true });
+    World.add(world, [ground, leftWall, rightWall]);
+
+    // Pegs
+    const pegRadius = 5;
+    const rows = 12;
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col <= binCount; col++) {
+        const isOffset = row % 2 === 0 ? 0 : spacing / 2;
+        const x = offsetX + col * spacing + isOffset;
+        const y = 100 + row * spacing;
+        if (x > width - offsetX || x < offsetX) continue;
+        const peg = Bodies.circle(x, y, pegRadius, {
+          isStatic: true,
+          render: { fillStyle: '#333' }
+        });
+        World.add(world, peg);
+      }
+    }
+
+    // Bins
+    const bins = [];
+    for (let i = 0; i <= binCount; i++) {
+      const x = offsetX + i * spacing;
+      const bin = Bodies.rectangle(x, height - 40, 6, 120, {
+        isStatic: true,
+        render: { fillStyle: '#666' }
+      });
+      World.add(world, bin);
+      bins.push(bin);
+    }
+
+    // Add left/right invisible barriers at bin edges
+    const edgeLeft = Bodies.rectangle(offsetX - 1, height - 60, 2, 150, { isStatic: true });
+    const edgeRight = Bodies.rectangle(offsetX + binCount * spacing + 1, height - 60, 2, 150, { isStatic: true });
+    World.add(world, [edgeLeft, edgeRight]);
+
+    // Multiplier Labels
+    multipliers.forEach((multi, i) => {
+      const label = document.createElement('div');
+      label.className = 'multiplier-label';
+      label.style.left = `${offsetX + i * spacing + spacing / 2}px`;
+      label.textContent = `${multi}x`;
+      document.body.appendChild(label);
+    });
+
+    // Drop balls on button click
+    document.getElementById('betBtn').addEventListener('click', () => {
+      const ballCount = parseInt(document.getElementById('ballCount').value);
+      const betAmount = parseFloat(document.getElementById('betAmount').value);
+      const totalBet = ballCount * betAmount;
+      let totalWon = 0;
+      let dropped = 0;
+
+      for (let i = 0; i < ballCount; i++) {
+        const x = offsetX + spacing + Math.random() * ((binCount - 2) * spacing);
+        const ball = Bodies.circle(x, 20 + i * 5, 8, {
+          restitution: 0.4,
+          friction: 0.005,
+          frictionAir: 0.01,
+          label: 'ball',
+          render: { fillStyle: '#e91e63' }
+        });
+        World.add(world, ball);
+      }
+
+      Events.on(engine, 'afterUpdate', function checkLanding() {
+        let updated = false;
+
+        world.bodies.forEach(body => {
+          if (body.label === 'ball' && body.position.y > height - 100) {
+            const index = Math.floor((body.position.x - offsetX) / spacing);
+            if (index >= 0 && index < multipliers.length) {
+              const win = betAmount * multipliers[index];
+              totalWon += win;
+              dropped++;
+              body.label = 'counted';
+              World.remove(world, body);
+              updated = true;
+            }
+          }
+        });
+
+        if (dropped >= ballCount && updated) {
+          document.getElementById('result').textContent =
+            `Total Bet: ${totalBet.toFixed(2)} | Total Won: ${totalWon.toFixed(2)} | Net: ${(totalWon - totalBet).toFixed(2)}`;
+          Events.off(engine, 'afterUpdate', checkLanding);
+        }
+      });
+    });
+
+    function generateMultipliers(count) {
+      const multipliers = Array(count).fill(1);
+      const lowVals = [0.2, 0.5, 1, 1.5];
+      for (let i = 0; i < count; i++) {
+        multipliers[i] = lowVals[Math.floor(Math.random() * lowVals.length)];
+      }
+      const jackpotIndex = Math.floor(count / 2);
+      multipliers[jackpotIndex] = 40;
+      return multipliers;
+    }
+  </script>
+</body>
+</html>
+
+

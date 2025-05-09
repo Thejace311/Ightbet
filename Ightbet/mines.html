@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Mines Game</title>
+  <style>
+    body {
+      background: #121212;
+      color: #fff;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      margin-bottom: 10px;
+    }
+    #controls {
+      margin-bottom: 10px;
+    }
+    #controls input {
+      width: 60px;
+    }
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(5, 60px);
+      grid-gap: 6px;
+      margin-top: 10px;
+    }
+    .tile {
+      width: 60px;
+      height: 60px;
+      background: #333;
+      border-radius: 6px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+      font-weight: bold;
+    }
+    .revealed.safe {
+      background: #4caf50;
+    }
+    .revealed.mine {
+      background: #e53935;
+    }
+    button {
+      margin-left: 6px;
+    }
+    #result {
+      margin-top: 10px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <h1>Mines Game</h1>
+  <div id="controls">
+    Mines: <input type="number" id="mineCount" min="1" max="24" value="3">
+    <button onclick="startGame()">Start</button>
+    <button onclick="cashOut()">Cash Out</button>
+  </div>
+  <div id="grid"></div>
+  <div id="result">Start a game to play</div>
+
+  <script>
+    const size = 5;
+    let mineCount = 3;
+    let minePositions = new Set();
+    let revealedCount = 0;
+    let gameActive = false;
+    let multiplier = 0;
+
+    function startGame() {
+      mineCount = Math.min(24, Math.max(1, parseInt(document.getElementById('mineCount').value)));
+      minePositions.clear();
+      revealedCount = 0;
+      gameActive = true;
+      multiplier = 0;
+
+      // Generate mine positions
+      while (minePositions.size < mineCount) {
+        minePositions.add(Math.floor(Math.random() * 25));
+      }
+
+      renderGrid();
+      document.getElementById('result').textContent = `Game started with ${mineCount} mines!`;
+    }
+
+    function renderGrid() {
+      const grid = document.getElementById('grid');
+      grid.innerHTML = '';
+
+      for (let i = 0; i < 25; i++) {
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        tile.dataset.index = i;
+        tile.onclick = () => revealTile(i, tile);
+        grid.appendChild(tile);
+      }
+    }
+
+    function revealTile(index, tile) {
+      if (!gameActive || tile.classList.contains('revealed')) return;
+
+      tile.classList.add('revealed');
+
+      if (minePositions.has(index)) {
+        tile.classList.add('mine');
+        tile.textContent = '💣';
+        gameActive = false;
+        document.getElementById('result').textContent = `💥 Boom! You hit a mine. Multiplier lost.`;
+        revealAll();
+        return;
+      }
+
+      tile.classList.add('safe');
+      tile.textContent = '✔';
+      revealedCount++;
+      multiplier = getMultiplier(revealedCount, mineCount);
+      document.getElementById('result').textContent = `Safe! Multiplier: x${multiplier.toFixed(2)}`;
+    }
+
+    function cashOut() {
+      if (!gameActive || revealedCount === 0) return;
+      gameActive = false;
+      document.getElementById('result').textContent = `💰 Cashed out! Multiplier: x${multiplier.toFixed(2)}`;
+      revealAll();
+    }
+
+    function revealAll() {
+      const tiles = document.querySelectorAll('.tile');
+      tiles.forEach(tile => {
+        const index = parseInt(tile.dataset.index);
+        if (!tile.classList.contains('revealed')) {
+          tile.classList.add('revealed');
+          if (minePositions.has(index)) {
+            tile.classList.add('mine');
+            tile.textContent = '💣';
+          } else {
+            tile.classList.add('safe');
+            tile.textContent = '✔';
+          }
+        }
+      });
+    }
+
+    // Updated multiplier function with the x starting at 0 and growing with safe tiles revealed
+    function getMultiplier(safeRevealed, totalMines) {
+      const totalTiles = 25;
+
+      // Calculate the basic multiplier based on how many safe tiles are revealed
+      let odds = 1;
+      for (let i = 0; i < safeRevealed; i++) {
+        odds *= (totalTiles - totalMines - i) / (totalTiles - i);
+      }
+
+      // Increase the multiplier based on the revealed safe tiles
+      let multiplier = Math.pow(safeRevealed, 1.2) / (totalTiles - totalMines); // Multiplier grows with safe revealed tiles
+
+      // Apply a stronger penalty based on the number of mines
+      let penalty = Math.pow(totalMines / 5, 2); // The penalty increases with the number of mines (quadratic scaling)
+
+      return Math.max(multiplier - penalty, 0); // Ensure it doesn't go below 0
+    }
+  </script>
+</body>
+</html>
